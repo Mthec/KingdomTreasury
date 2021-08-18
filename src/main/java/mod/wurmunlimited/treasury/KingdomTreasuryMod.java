@@ -58,6 +58,11 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
                 "reallyHandle_CMD_MOVE_INVENTORY",
                 "(Ljava/nio/ByteBuffer;)V",
                 () -> this::reallyHandle_CMD_MOVE_INVENTORY);
+
+        manager.registerHook("com.wurmonline.server.creatures.Communicator",
+                "reallyHandle_CMD_CLOSE_INVENTORY_WINDOW",
+                "(Ljava/nio/ByteBuffer;)V",
+                () -> this::reallyHandle_CMD_CLOSE_INVENTORY_WINDOW);
     }
 
     @Override
@@ -102,7 +107,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
             }
 
             try {
-                Item item = Items.getItem(s);
+                Item item = Items.getItem(subjectIds[s]);
                 if (item.isCoin()) {
                     if (item.getOwnerId() != playerId) {
                         sendNotOwned = true;
@@ -161,5 +166,19 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
         communicator.sendNormalServerMessage("There is now " + newBalance.getChangeString() + " in the treasury.");
         communicator.sendNormalServerMessage("If this amount is incorrect, please wait a while since the information may not immediately be updated.");
         logger.info(player.getName() + " deposited " + deposited.getChangeString() + " into the treasury and it now has " + newBalance.getChangeString() + ".");
+    }
+
+    Object reallyHandle_CMD_CLOSE_INVENTORY_WINDOW(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        ByteBuffer byteBuffer = (ByteBuffer)args[0];
+        byteBuffer.mark();
+        long inventoryWindow = byteBuffer.getLong();
+
+        if (inventoryWindow == treasuryWindowId) {
+            ((Communicator)o).sendCloseInventoryWindow(inventoryWindow);
+            return null;
+        } else {
+            byteBuffer.reset();
+            return method.invoke(o, args);
+        }
     }
 }
