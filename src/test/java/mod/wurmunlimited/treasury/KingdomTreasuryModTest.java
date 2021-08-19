@@ -1,5 +1,6 @@
 package mod.wurmunlimited.treasury;
 
+import com.wurmonline.server.Servers;
 import com.wurmonline.server.behaviours.Action;
 import com.wurmonline.server.behaviours.Deposit;
 import com.wurmonline.server.behaviours.TreasuryActions;
@@ -9,12 +10,14 @@ import com.wurmonline.server.items.ItemList;
 import com.wurmonline.server.kingdom.King;
 import com.wurmonline.server.players.Player;
 import mod.wurmunlimited.WurmObjectsFactory;
+import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.gotti.wurmunlimited.modsupport.actions.ActionEntryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.util.Properties;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class KingdomTreasuryModTest {
     protected static final byte kingdomId = 2;
@@ -52,6 +55,8 @@ public abstract class KingdomTreasuryModTest {
         action = mock(Action.class);
 
         setNotOnlyKing();
+        ReflectionUtil.setPrivateField(null, Servers.class.getDeclaredField("isHomeServer"), true);
+        when(Servers.localServer.getKingdom()).thenReturn(king.getKingdomId());
     }
 
     protected void setOnlyKing() {

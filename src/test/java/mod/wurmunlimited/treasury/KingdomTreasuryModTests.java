@@ -1,10 +1,12 @@
 package mod.wurmunlimited.treasury;
 
+import com.wurmonline.server.Servers;
 import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.economy.Economy;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemList;
 import com.wurmonline.server.items.Trade;
+import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationHandler;
@@ -20,6 +22,30 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
+    @Test
+    void testMustBeOwnHomeServer() throws NoSuchFieldException, IllegalAccessException {
+        ReflectionUtil.setPrivateField(null, Servers.class.getDeclaredField("isHomeServer"), true);
+        when(Servers.localServer.getKingdom()).thenReturn((byte)(king.getKingdomId() + 1));
+
+        setNotOnlyKing();
+
+        assertFalse(KingdomTreasuryMod.canManage(king));
+        assertFalse(KingdomTreasuryMod.canManage(advisor));
+        assertFalse(KingdomTreasuryMod.canManage(other));
+    }
+
+    @Test
+    void testMustBeHomeServer() throws NoSuchFieldException, IllegalAccessException {
+        ReflectionUtil.setPrivateField(null, Servers.class.getDeclaredField("isHomeServer"), false);
+        when(Servers.localServer.getKingdom()).thenReturn(king.getKingdomId());
+
+        setNotOnlyKing();
+
+        assertFalse(KingdomTreasuryMod.canManage(king));
+        assertFalse(KingdomTreasuryMod.canManage(advisor));
+        assertFalse(KingdomTreasuryMod.canManage(other));
+    }
+
     @Test
     void testCanManageKingOnly() {
         setOnlyKing();

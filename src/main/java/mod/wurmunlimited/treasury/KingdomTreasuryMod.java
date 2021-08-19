@@ -2,6 +2,7 @@ package mod.wurmunlimited.treasury;
 
 import com.wurmonline.server.Items;
 import com.wurmonline.server.NoSuchItemException;
+import com.wurmonline.server.Servers;
 import com.wurmonline.server.behaviours.Deposit;
 import com.wurmonline.server.behaviours.TreasuryActions;
 import com.wurmonline.server.behaviours.Withdraw;
@@ -30,6 +31,10 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     private static boolean kingOnly = false;
 
     public static boolean canManage(Creature performer) {
+        if (!Servers.isThisAHomeServer() || Servers.localServer.getKingdom() != performer.getKingdomId()) {
+            return false;
+        }
+
         if (kingOnly) {
             return performer.isKing();
         } else {
