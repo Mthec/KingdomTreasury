@@ -6,7 +6,7 @@ import com.wurmonline.server.economy.Economy;
 import com.wurmonline.server.economy.MonetaryConstants;
 import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.items.Item;
-import com.wurmonline.server.players.Player;
+import com.wurmonline.server.items.ItemList;
 import mod.wurmunlimited.bml.BML;
 import mod.wurmunlimited.bml.BMLBuilder;
 
@@ -30,7 +30,7 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
                 responder.getCommunicator().sendNormalServerMessage("You are dead, and may not withdraw any money.");
                 return;
             }
-            if (token.getTemplateId() != 236) {
+            if (token.getTemplateId() != ItemList.villageToken) {
                 responder.getCommunicator().sendNormalServerMessage("The " + token.getName() + " does not function as a treasury.");
                 return;
             }
@@ -63,7 +63,6 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
                     }
                     if (wantedIron < 0L) {
                         responder.getCommunicator().sendNormalServerMessage("You may not withdraw a negative amount of iron coins!");
-                        ((Player)responder).openBank();
                         return;
                     }
                     valueWithdrawn = MonetaryConstants.COIN_GOLD * wantedGold;

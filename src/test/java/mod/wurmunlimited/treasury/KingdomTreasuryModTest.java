@@ -23,11 +23,11 @@ public abstract class KingdomTreasuryModTest {
     protected Player advisor;
     protected Player other;
     protected Item token;
-    protected TreasuryActions actions;
-    protected Deposit deposit;
-    protected Withdraw withdraw;
+    protected static TreasuryActions actions;
+    protected static Deposit deposit;
+    protected static Withdraw withdraw;
     protected Action action;
-    private boolean init = false;
+    private static boolean init = false;
 
     @BeforeEach
     protected void setUp() throws Exception {
@@ -50,6 +50,8 @@ public abstract class KingdomTreasuryModTest {
         other.setKingdomId(kingdomId);
         token = factory.createNewItem(ItemList.villageToken);
         action = mock(Action.class);
+
+        setNotOnlyKing();
     }
 
     protected void setOnlyKing() {

@@ -40,9 +40,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     @Override
     public void configure(Properties properties) {
         String val = properties.getProperty("king_only");
-        if (val != null && val.equals("true")) {
-            kingOnly = true;
-        }
+        kingOnly = val != null && val.equals("true");
     }
 
     @Override
@@ -111,6 +109,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
                 if (item.isCoin()) {
                     if (item.getOwnerId() != playerId) {
                         sendNotOwned = true;
+                        continue;
                     }
 
                     if (player.isTrading()) {
@@ -122,6 +121,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
                         return;
                     }
                     if (item.isBanked()) {
+                        communicator.sendNormalServerMessage("You cannot transfer that item.");
                         return;
                     }
                     coins.add(item);
@@ -138,7 +138,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
         }
 
         if (sendNotOwned) {
-            communicator.sendNormalServerMessage("You must own the coin to put it in the treasury.");
+            communicator.sendNormalServerMessage("You must own the coins to put them in the treasury.");
         }
 
         if (sendUnknownItem) {
@@ -159,13 +159,15 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
                 return;
             }
         }
-        treasury.setMoney(treasury.getMoney() + value);
-        Change deposited = new Change(value);
-        communicator.sendNormalServerMessage("Deposited " + deposited.getChangeString() + '.');
-        Change newBalance = Economy.getEconomy().getChangeFor(treasury.getMoney());
-        communicator.sendNormalServerMessage("There is now " + newBalance.getChangeString() + " in the treasury.");
-        communicator.sendNormalServerMessage("If this amount is incorrect, please wait a while since the information may not immediately be updated.");
-        logger.info(player.getName() + " deposited " + deposited.getChangeString() + " into the treasury and it now has " + newBalance.getChangeString() + ".");
+        if (value != 0) {
+            treasury.setMoney(treasury.getMoney() + value);
+            Change deposited = new Change(value);
+            communicator.sendNormalServerMessage("Deposited " + deposited.getChangeString() + '.');
+            Change newBalance = Economy.getEconomy().getChangeFor(treasury.getMoney());
+            communicator.sendNormalServerMessage("There is now " + newBalance.getChangeString() + " in the treasury.");
+            communicator.sendNormalServerMessage("If this amount is incorrect, please wait a while since the information may not immediately be updated.");
+            logger.info(player.getName() + " deposited " + deposited.getChangeString() + " into the treasury and it now has " + newBalance.getChangeString() + ".");
+        }
     }
 
     Object reallyHandle_CMD_CLOSE_INVENTORY_WINDOW(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
