@@ -25,7 +25,6 @@ import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
 
-import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -39,7 +38,6 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     private static final Logger logger = Logger.getLogger(KingdomTreasuryMod.class.getName());
     public static final long treasuryWindowId = -2468;
     private static boolean kingOnly = false;
-    private static @Nullable Transaction transactionWatcher;
     public static long declarationPrice = MonetaryConstants.COIN_GOLD;
     public static long startingMoney = MonetaryConstants.COIN_GOLD;
     public static KingdomTreasuryMod mod;
