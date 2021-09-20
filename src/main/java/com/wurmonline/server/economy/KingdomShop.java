@@ -100,6 +100,7 @@ public class KingdomShop extends Shop {
                     PreparedStatement ps = db.prepareStatement("UPDATE shops SET money=? WHERE id=?;");
                     ps.setLong(1, newTotal);
                     ps.setByte(2, kingdom);
+                    ps.executeUpdate();
                 });
             } catch (SQLException e) {
                 logger.warning("Error when updating kingdom (" + kingdom + ") money:");
@@ -129,6 +130,7 @@ public class KingdomShop extends Shop {
                 ps.setLong(1, moneyEarned);
                 ps.setLong(2, moneyEarnedLife);
                 ps.setByte(3, kingdom);
+                ps.executeUpdate();
             });
         } catch (SQLException e) {
             logger.warning("Error when updating kingdom (" + kingdom + ") moneyEarned:");
@@ -139,13 +141,14 @@ public class KingdomShop extends Shop {
     @Override
     public void addMoneySpent(long amount) {
         moneySpent += amount;
-        moneySpentLife = amount;
+        moneySpentLife += amount;
         try {
             execute(db -> {
                 PreparedStatement ps = db.prepareStatement("UPDATE shops SET moneySpent=?, moneySpentLife=? WHERE id=?;");
                 ps.setLong(1, moneySpent);
                 ps.setLong(2, moneySpentLife);
                 ps.setByte(3, kingdom);
+                ps.executeUpdate();
             });
         } catch (SQLException e) {
             logger.warning("Error when updating kingdom (" + kingdom + ") moneySpent:");
@@ -165,6 +168,7 @@ public class KingdomShop extends Shop {
                 ps.setLong(2, moneySpent);
                 ps.setLong(3, moneySpentLastMonth);
                 ps.setByte(4, kingdom);
+                ps.executeUpdate();
             });
         } catch (SQLException e) {
             logger.warning("Error when resetting kingdom (" + kingdom + ") earnings:");
