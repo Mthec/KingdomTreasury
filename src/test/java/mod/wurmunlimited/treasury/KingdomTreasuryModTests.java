@@ -32,10 +32,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.logging.Logger;
 
 import static mod.wurmunlimited.Assert.*;
@@ -505,6 +502,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         long currentMoney = 0;
         long moneyAdded = MonetaryConstants.COIN_SILVER;
         Method reallyHandle = IntraServerConnection.class.getDeclaredMethod("reallyHandle", int.class, ByteBuffer.class);
+        //noinspection unchecked
+        ((Set<String>)ReflectionUtil.getPrivateField(null, IntraServerConnection.class.getDeclaredField("moneyDetails"))).clear();
         InvocationHandler handler = factory.mod::intraServerSetMoney;
         Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
