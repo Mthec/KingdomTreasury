@@ -5,6 +5,7 @@ import com.wurmonline.server.economy.KingdomShop;
 import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.kingdom.Kingdom;
 import com.wurmonline.server.kingdom.Kingdoms;
+import org.jetbrains.annotations.TestOnly;
 
 import javax.annotation.Nullable;
 import java.sql.PreparedStatement;
@@ -25,27 +26,35 @@ public class KingdomShops {
         }
     }
 
-    private static final Logger logger = Logger.getLogger(KingdomShop.class.getName());
-    public Map<Byte, Shop> shops = new HashMap<>();
-    private final Map<Byte, Integer> traderNums = new HashMap<>();
-    private Shop kingsShop = null;
-    private final Map<Shop, ShopCreation> shopCreation = new HashMap<>();
+    private static final Logger logger = Logger.getLogger(KingdomShops.class.getName());
+    public static Map<Byte, Shop> shops = new HashMap<>();
+    private static final Map<Byte, Integer> traderNums = new HashMap<>();
+    private static Shop kingsShop = null;
+    private static final Map<Shop, ShopCreation> shopCreation = new HashMap<>();
 
-    public Shop kings() {
+    @TestOnly
+    public static void reset() {
+        shops.clear();
+        traderNums.clear();
+        kingsShop = null;
+        shopCreation.clear();
+    }
+
+    public static Shop kings() {
         if (kingsShop == null) {
             kingsShop = Economy.getEconomy().getKingsShop();
         }
         return kingsShop;
     }
 
-    public Shop getFor(byte kingdom) {
+    public static Shop getFor(byte kingdom) {
         if (shops.size() == 0) {
             loadShops();
         }
 
         Shop shop = shops.get(kingdom);
         if (shop == null) {
-            shop = new KingdomShop(kingdom);
+            shop = KingdomShop.createNew(kingdom);
             logger.info("Creating Kingdom Shop for " + Kingdoms.getKingdom(kingdom).getName() + ".");
             shops.put(kingdom, shop);
         }
@@ -53,23 +62,23 @@ public class KingdomShops {
         return shop;
     }
 
-    public void store(Shop shop, byte kingdom) {
+    public static void store(Shop shop, byte kingdom) {
         shopCreation.put(shop, new ShopCreation(getFor(kingdom), kings().getMoney()));
     }
 
-    public @Nullable ShopCreation retrieve(Shop shop) {
+    public static @Nullable ShopCreation retrieve(Shop shop) {
         return shopCreation.remove(shop);
     }
 
-    private void loadShops() {
+    private static void loadShops() {
         try {
             KingdomShop.execute(db -> {
                 ResultSet rs = db.prepareStatement("SELECT * FROM shops;").executeQuery();
-                Map<Byte, KingdomShop> kingdomShops = new HashMap<>();
+                Map<Byte, Shop> kingdomShops = new HashMap<>();
 
                 while (rs.next()) {
                     byte kingdom = rs.getByte(1);
-                    kingdomShops.put(kingdom, new KingdomShop(kingdom,
+                    kingdomShops.put(kingdom, KingdomShop.load(kingdom,
                             rs.getLong(2),
                             rs.getLong(3),
                             rs.getLong(4),
@@ -90,7 +99,7 @@ public class KingdomShops {
                         shops.put(id, shop);
                     } else {
                         logger.info("Creating Kingdom Shop for " + kingdom.getName() + ".");
-                        shops.put(id, new KingdomShop(id));
+                        shops.put(id, KingdomShop.createNew(id));
                     }
                 }
             });
@@ -100,7 +109,7 @@ public class KingdomShops {
         }
     }
 
-    public void delete(byte kingdom) {
+    public static void delete(byte kingdom) {
         try {
             KingdomShop.execute(db -> {
                 PreparedStatement ps = db.prepareStatement("DELETE FROM shops WHERE id=?;");
@@ -114,15 +123,15 @@ public class KingdomShops {
         }
     }
 
-    public void addTrader(byte kingdom) {
+    public static void addTrader(byte kingdom) {
         traderNums.merge(kingdom, 1, Integer::sum);
     }
 
-    public void removeTrader(byte kingdom) {
+    public static void removeTrader(byte kingdom) {
         traderNums.merge(kingdom, -1, Integer::sum);
     }
 
-    public int getNumTradersFor(byte kingdom) {
+    public static int getNumTradersFor(byte kingdom) {
         return traderNums.getOrDefault(kingdom, 0);
     }
 }

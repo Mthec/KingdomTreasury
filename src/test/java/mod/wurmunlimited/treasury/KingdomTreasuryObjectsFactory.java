@@ -18,14 +18,15 @@ import static org.mockito.Mockito.when;
 
 public class KingdomTreasuryObjectsFactory extends WurmObjectsFactory {
     public final byte pmkId = -12;
-    private static final Object[] emptyArray = new Object[0];
+    public static final Object[] emptyArray = new Object[0];
+    public KingdomTreasuryMod mod;
 
     public KingdomTreasuryObjectsFactory() throws Exception {
         super();
         Kingdoms.addKingdom(new Kingdom(pmkId, (byte)1, "My Kingdom", "", "My Kingdom", "of Nowhere", "", "", true));
-        new KingdomTreasuryMod();
+        mod = new KingdomTreasuryMod();
         Economy economy = Economy.getEconomy();
-        when(economy.getKingsShop()).thenAnswer(i -> KingdomTreasuryMod.mod.getKingsShop(economy, mock(Method.class), emptyArray));
+        when(economy.getKingsShop()).thenAnswer(i -> mod.getKingsShop(economy, mock(Method.class), emptyArray));
     }
 
     @Override

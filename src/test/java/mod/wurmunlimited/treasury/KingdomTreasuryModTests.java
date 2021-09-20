@@ -3,7 +3,6 @@ package mod.wurmunlimited.treasury;
 import com.wurmonline.communication.SocketConnection;
 import com.wurmonline.server.Items;
 import com.wurmonline.server.Server;
-import com.wurmonline.server.Servers;
 import com.wurmonline.server.banks.Banks;
 import com.wurmonline.server.behaviours.Action;
 import com.wurmonline.server.behaviours.Methods;
@@ -46,38 +45,12 @@ import static org.mockito.Mockito.*;
 
 public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     private static final long startingTreasury = 200000;
-    private Shop kingsShop;
     
     @BeforeEach
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        kingsShop = KingdomTreasuryMod.mod.shops.kings();
-        kingsShop.setMoney(startingTreasury);
-    }
-    
-    @Test
-    void testMustBeOwnHomeServer() throws NoSuchFieldException, IllegalAccessException {
-        ReflectionUtil.setPrivateField(null, Servers.class.getDeclaredField("isHomeServer"), true);
-        when(Servers.localServer.getKingdom()).thenReturn((byte)(king.getKingdomId() + 1));
-
-        setNotOnlyKing();
-
-        assertFalse(KingdomTreasuryMod.canManage(king));
-        assertFalse(KingdomTreasuryMod.canManage(advisor));
-        assertFalse(KingdomTreasuryMod.canManage(other));
-    }
-
-    @Test
-    void testMustBeHomeServer() throws NoSuchFieldException, IllegalAccessException {
-        ReflectionUtil.setPrivateField(null, Servers.class.getDeclaredField("isHomeServer"), false);
-        when(Servers.localServer.getKingdom()).thenReturn(king.getKingdomId());
-
-        setNotOnlyKing();
-
-        assertFalse(KingdomTreasuryMod.canManage(king));
-        assertFalse(KingdomTreasuryMod.canManage(advisor));
-        assertFalse(KingdomTreasuryMod.canManage(other));
+        Economy.getEconomy().getKingsShop().setMoney(startingTreasury);
     }
 
     @Test
@@ -101,12 +74,12 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     @Test
     void testReallyHandle_CMD_MOVE_INVENTORY() throws Throwable {
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         Arrays.stream(items).forEach(c -> king.getInventory().insertItem(c));
 
-        InvocationHandler handler = KingdomTreasuryMod.mod::reallyHandle_CMD_MOVE_INVENTORY;
+        InvocationHandler handler = factory.mod::reallyHandle_CMD_MOVE_INVENTORY;
         Communicator communicator = king.getCommunicator();
         Method method = mock(Method.class);
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
@@ -127,12 +100,12 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     @Test
     void testReallyHandle_CMD_MOVE_INVENTORYNotTreasuryAction() throws Throwable {
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         Arrays.stream(items).forEach(c -> king.getInventory().insertItem(c));
 
-        InvocationHandler handler = KingdomTreasuryMod.mod::reallyHandle_CMD_MOVE_INVENTORY;
+        InvocationHandler handler = factory.mod::reallyHandle_CMD_MOVE_INVENTORY;
         Communicator communicator = king.getCommunicator();
         Method method = mock(Method.class);
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
@@ -153,7 +126,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
     @Test
     void testReallyHandle_CMD_CLOSE_INVENTORY_WINDOW() throws Throwable {
-        InvocationHandler handler = KingdomTreasuryMod.mod::reallyHandle_CMD_CLOSE_INVENTORY_WINDOW;
+        InvocationHandler handler = factory.mod::reallyHandle_CMD_CLOSE_INVENTORY_WINDOW;
         Communicator communicator = king.getCommunicator();
         Method method = mock(Method.class);
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
@@ -168,7 +141,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
     @Test
     void testReallyHandle_CMD_CLOSE_INVENTORY_WINDOWNotTreasuryAction() throws Throwable {
-        InvocationHandler handler = KingdomTreasuryMod.mod::reallyHandle_CMD_CLOSE_INVENTORY_WINDOW;
+        InvocationHandler handler = factory.mod::reallyHandle_CMD_CLOSE_INVENTORY_WINDOW;
         Communicator communicator = king.getCommunicator();
         Method method = mock(Method.class);
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
@@ -186,14 +159,14 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     void testHandleItems() {
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         int nums = items.length;
         long[] itemIds = Arrays.stream(items).mapToLong(Item::getWurmId).toArray();
         Arrays.stream(items).forEach(c -> king.getInventory().insertItem(c));
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+        factory.mod.handleItems(communicator, nums, itemIds);
         assertThat(king, hasCoinsOfValue(0));
         assertEquals(coins, kingdomShop.getMoney());
         assertThat(king, receivedMessageContaining("Deposited 2 copper"));
@@ -203,7 +176,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     @Test
     void testHandleItemsTooMany() {
         Communicator communicator = king.getCommunicator();
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         List<Item> items = new ArrayList<>();
         for (int i = 0; i < 125; i++) {
@@ -214,7 +187,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         int nums = items.size();
         long[] itemIds = items.stream().mapToLong(Item::getWurmId).toArray();
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+        factory.mod.handleItems(communicator, nums, itemIds);
         assertThat(king, hasCoinsOfValue(25));
         assertEquals(100, kingdomShop.getMoney());
         assertThat(king, receivedMessageContaining("maximum of 100 items"));
@@ -226,13 +199,13 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     void testHandleItemsNotOwned() {
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         int nums = items.length;
         long[] itemIds = Arrays.stream(items).mapToLong(Item::getWurmId).toArray();
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+        factory.mod.handleItems(communicator, nums, itemIds);
         assertThat(king, hasCoinsOfValue(0));
         assertEquals(0, kingdomShop.getMoney());
         assertThat(king, didNotReceiveMessageContaining("Deposited"));
@@ -245,14 +218,14 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         king.setTrade(mock(Trade.class));
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         int nums = items.length;
         long[] itemIds = Arrays.stream(items).mapToLong(Item::getWurmId).toArray();
         Arrays.stream(items).forEach(c -> king.getInventory().insertItem(c));
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+        factory.mod.handleItems(communicator, nums, itemIds);
         assertThat(king, hasCoinsOfValue(coins));
         assertEquals(0, kingdomShop.getMoney());
         assertThat(king, didNotReceiveMessageContaining("Deposited"));
@@ -265,14 +238,14 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         king.die(true, "Greed.");
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         int nums = items.length;
         long[] itemIds = Arrays.stream(items).mapToLong(Item::getWurmId).toArray();
         Arrays.stream(items).forEach(c -> king.getInventory().insertItem(c));
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+        factory.mod.handleItems(communicator, nums, itemIds);
         assertThat(king, hasCoinsOfValue(coins));
         assertEquals(0, kingdomShop.getMoney());
         assertThat(king, didNotReceiveMessageContaining("Deposited"));
@@ -284,7 +257,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     void testHandleItemsBankedItems() {
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         int nums = items.length;
@@ -294,7 +267,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
         try (MockedStatic<Banks> banks = mockStatic(Banks.class)) {
             banks.when(() -> Banks.isItemBanked(anyLong())).thenAnswer(i -> ReflectionUtil.getPrivateField(Items.getItem(i.getArgument(0)), Item.class.getDeclaredField("banked")));
-            KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+            factory.mod.handleItems(communicator, nums, itemIds);
             assertThat(king, hasCoinsOfValue(coins));
             assertEquals(0, kingdomShop.getMoney());
             assertThat(king, receivedMessageContaining("cannot transfer"));
@@ -309,7 +282,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         List<Item> items = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
@@ -323,7 +296,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         int nums = items.size();
         long[] itemIds = items.stream().mapToLong(Item::getWurmId).toArray();
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, itemIds);
+        factory.mod.handleItems(communicator, nums, itemIds);
         assertThat(king, hasCoinsOfValue(0));
         assertEquals(1, king.getInventory().getItemCount());
         assertEquals(coins, kingdomShop.getMoney());
@@ -338,7 +311,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
         Communicator communicator = king.getCommunicator();
         long coins = 200;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(kingdomId);
+        Shop kingdomShop = KingdomShops.getFor(kingdomId);
         kingdomShop.setMoney(0);
         Item[] items = Economy.getEconomy().getCoinsFor(coins);
         Arrays.stream(items).forEach(c -> king.getInventory().insertItem(c));
@@ -348,7 +321,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         System.arraycopy(itemIds, 0, finalIds, 0, itemIds.length);
         finalIds[nums - 1] = 12345;
 
-        KingdomTreasuryMod.mod.handleItems(communicator, nums, finalIds);
+        factory.mod.handleItems(communicator, nums, finalIds);
         assertThat(king, hasCoinsOfValue(0));
         assertEquals(coins, kingdomShop.getMoney());
         assertThat(king, receivedMessageContaining("Deposited 2 copper"));
@@ -361,14 +334,14 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     @Test
     void testDiscardSellItem() throws Throwable {
         Method discardSellItem = Methods.class.getDeclaredMethod("discardSellItem", Creature.class, Action.class, Item.class, float.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::discardSellItem;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::discardSellItem;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(startingTreasury);
 
         //noinspection SpellCheckingInspection
         Player discarder = factory.createNewPlayer();
         discarder.setKingdomId(factory.pmkId);
-        assert KingdomTreasuryMod.mod.shops.getFor(discarder.getStatus().kingdom).getMoney() == startingTreasury;
+        assert KingdomShops.getFor(discarder.getStatus().kingdom).getMoney() == startingTreasury;
         Action action = mock(Action.class);
         Item discarding = factory.createNewItem(ItemList.acorn);
         discarder.getInventory().insertItem(discarding);
@@ -376,13 +349,13 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Object[] args = new Object[] { discarder, action, discarding, 1.0f };
 
         handler.invoke(null, discardSellItem, args);
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
         assertEquals(startingTreasury, kingdomShop.getMoney());
         factory.getCommunicator(discarder).actionMe = "Selling";
 
         args[3] = 3.1f;
         handler.invoke(null, discardSellItem, args);
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
         assertTrue(kingdomShop.getMoney() < startingTreasury);
         assertEquals(startingTreasury - kingdomShop.getMoney(), discarder.getSaveFile().getMoneyToSend());
     }
@@ -390,8 +363,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     @Test
     void testCreatureRemoveRandomItems() throws Throwable {
         Method removeRandomItems = Creature.class.getDeclaredMethod("removeRandomItems");
-        InvocationHandler handler = KingdomTreasuryMod.mod::creatureRemoveRandomItems;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::creatureRemoveRandomItems;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(startingTreasury);
 
         Creature trader = factory.createNewTrader(factory.pmkId);
@@ -401,7 +374,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Server.rand.setSeed(4446);
 
         handler.invoke(trader, removeRandomItems, args);
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
         assertTrue(kingdomShop.getMoney() < startingTreasury);
         assertEquals(startingTreasury - kingdomShop.getMoney(), factory.getShop(trader).getMoney());
     }
@@ -411,9 +384,9 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Creature toDestroy = factory.createNewTrader();
         toDestroy.setKingdomId(factory.pmkId);
         Method destroy = Creature.class.getDeclaredMethod("destroy");
-        InvocationHandler handler = KingdomTreasuryMod.mod::creatureDestroy;
-        kingsShop.setMoney(KingdomTreasuryModTests.startingTreasury);
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::creatureDestroy;
+        getKingsShop().setMoney(KingdomTreasuryModTests.startingTreasury);
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
         Shop traderShop = factory.getShop(toDestroy);
         traderShop.setMoney(MonetaryConstants.COIN_SILVER);
@@ -421,7 +394,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Object[] args = new Object[0];
 
         handler.invoke(toDestroy, destroy, args);
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
         assertEquals(MonetaryConstants.COIN_SILVER, kingdomShop.getMoney());
     }
 
@@ -430,15 +403,15 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Creature toDestroy = factory.createNewCreature(CreatureTemplateIds.BULL_CID);
         toDestroy.setKingdomId(factory.pmkId);
         Method destroy = Creature.class.getDeclaredMethod("destroy");
-        InvocationHandler handler = KingdomTreasuryMod.mod::creatureDestroy;
-        kingsShop.setMoney(KingdomTreasuryModTests.startingTreasury);
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::creatureDestroy;
+        getKingsShop().setMoney(KingdomTreasuryModTests.startingTreasury);
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Object[] args = new Object[0];
 
         handler.invoke(toDestroy, destroy, args);
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
         assertEquals(0, kingdomShop.getMoney());
     }
 
@@ -449,8 +422,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Shop traderShop = factory.getShop(toDelete);
         traderShop.setMoney(MonetaryConstants.COIN_SILVER);
         Method delete = mock(Method.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::dbShopDelete;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::dbShopDelete;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Object[] args = new Object[0];
@@ -470,17 +443,17 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         toCreate.setKingdomId(factory.pmkId);
         Shop traderShop = factory.getShop(toCreate);
         Method create = mock(Method.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::dbShopCreate;
-        assert KingdomTreasuryMod.mod.shops.getNumTradersFor(factory.pmkId) == 0;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::dbShopCreate;
+        assert KingdomShops.getNumTradersFor(factory.pmkId) == 0;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(startingTreasury);
 
         Object[] args = new Object[0];
 
         handler.invoke(traderShop, create, args);
         verify(create).invoke(traderShop, args);
-        assertEquals(1, KingdomTreasuryMod.mod.shops.getNumTradersFor(factory.pmkId));
-        KingdomShops.ShopCreation creation = KingdomTreasuryMod.mod.shops.retrieve(traderShop);
+        assertEquals(1, KingdomShops.getNumTradersFor(factory.pmkId));
+        KingdomShops.ShopCreation creation = KingdomShops.retrieve(traderShop);
         assertNotNull(creation);
         assertEquals(kingdomShop, creation.kingdomShop);
         assertEquals(creation.originalValue, kingdomShop.getMoney());
@@ -492,15 +465,15 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         toCreate.setKingdomId(factory.pmkId);
         Shop traderShop = factory.getShop(toCreate);
         Method create = mock(Method.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::dbShopCreate;
-        assert KingdomTreasuryMod.mod.shops.getNumTradersFor(factory.pmkId) == 0;
+        InvocationHandler handler = factory.mod::dbShopCreate;
+        assert KingdomShops.getNumTradersFor(factory.pmkId) == 0;
 
         Object[] args = new Object[0];
 
         handler.invoke(traderShop, create, args);
         verify(create).invoke(traderShop, args);
-        assertEquals(0, KingdomTreasuryMod.mod.shops.getNumTradersFor(factory.pmkId));
-        KingdomShops.ShopCreation creation = KingdomTreasuryMod.mod.shops.retrieve(traderShop);
+        assertEquals(0, KingdomShops.getNumTradersFor(factory.pmkId));
+        KingdomShops.ShopCreation creation = KingdomShops.retrieve(traderShop);
         assertNull(creation);
     }
 
@@ -510,18 +483,18 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         toCreate.setKingdomId(factory.pmkId);
         FakeShop traderShop = factory.getShop(toCreate);
         Method addShop = Economy.class.getDeclaredMethod("addShop", Shop.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::addShop;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::addShop;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
-        KingdomTreasuryMod.mod.shops.store(traderShop, factory.pmkId);
-        kingsShop.setMoney(kingsShop.getMoney() - MonetaryConstants.COIN_SILVER);
+        KingdomShops.store(traderShop, factory.pmkId);
+        getKingsShop().setMoney(getKingsShop().getMoney() - MonetaryConstants.COIN_SILVER);
 
         Object[] args = new Object[] { traderShop };
 
         try (MockedStatic<Economy> economy = mockStatic(Economy.class)) {
             handler.invoke(null, addShop, args);
             assertEquals(-MonetaryConstants.COIN_SILVER, kingdomShop.getMoney());
-            KingdomShops.ShopCreation creation = KingdomTreasuryMod.mod.shops.retrieve(traderShop);
+            KingdomShops.ShopCreation creation = KingdomShops.retrieve(traderShop);
             assertNull(creation);
         }
     }
@@ -532,8 +505,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         long currentMoney = 0;
         long moneyAdded = MonetaryConstants.COIN_SILVER;
         Method reallyHandle = IntraServerConnection.class.getDeclaredMethod("reallyHandle", int.class, ByteBuffer.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::intraServerSetMoney;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::intraServerSetMoney;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
         IntraServerConnection intra = mock(IntraServerConnection.class);
         SocketConnection conn = mock(SocketConnection.class);
@@ -568,8 +541,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         long currentMoney = 0;
         long moneyAdded = MonetaryConstants.COIN_SILVER;
         Method reallyHandle = mock(Method.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::intraServerSetMoney;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::intraServerSetMoney;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
         IntraServerConnection intra = mock(IntraServerConnection.class);
 
@@ -600,8 +573,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Creature trader = factory.createNewTrader(factory.pmkId);
         FakeShop traderShop = factory.getShop(trader);
         Method swapOwners = TradingWindow.class.getDeclaredMethod("swapOwners");
-        InvocationHandler handler = KingdomTreasuryMod.mod::swapOwners;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::swapOwners;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
         factory.getShop(trader).setMoney(0);
 
@@ -630,8 +603,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         trader.getInventory().insertItem(wagoner);
         FakeShop traderShop = factory.getShop(trader);
         Method swapOwners = TradingWindow.class.getDeclaredMethod("swapOwners");
-        InvocationHandler handler = KingdomTreasuryMod.mod::swapOwners;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::swapOwners;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
         factory.getShop(trader).setMoney(0);
 
@@ -663,8 +636,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         merchant.getInventory().insertItem(item);
         FakeShop merchantShop = factory.getShop(merchant);
         Method swapOwners = TradingWindow.class.getDeclaredMethod("swapOwners");
-        InvocationHandler handler = KingdomTreasuryMod.mod::swapOwners;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::swapOwners;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
         factory.getShop(merchant).setMoney(0);
 
@@ -687,8 +660,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
     void testCheckCoinAward() throws Throwable {
         Player player = factory.createNewPlayer(factory.pmkId);
         Method checkCoinAward = Player.class.getDeclaredMethod("checkCoinAward", int.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::checkCoinAward;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::checkCoinAward;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(startingTreasury);
 
         Object[] args = new Object[] { 1000 };
@@ -696,15 +669,15 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
         handler.invoke(player, checkCoinAward, args);
         assertEquals(startingTreasury-MonetaryConstants.COIN_SILVER, kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
     void testEconomicAdvisorQuestion() throws Throwable {
         long treasury = 123456;
         Method economicAdvisorQuestion = EconomicAdvisorInfo.class.getDeclaredMethod("sendQuestion");
-        InvocationHandler handler = KingdomTreasuryMod.mod::economicAdvisorInfo;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(advisor.getKingdomId());
+        InvocationHandler handler = factory.mod::economicAdvisorInfo;
+        Shop kingdomShop = KingdomShops.getFor(advisor.getKingdomId());
         kingdomShop.setMoney(treasury);
 
         Object[] args = new Object[0];
@@ -718,8 +691,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Player player = factory.createNewPlayer(factory.pmkId);
         player.setMoney(startingTreasury);
         Method playerPaymentAnswer = PlayerPaymentQuestion.class.getDeclaredMethod("answer", Properties.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::playerPaymentAnswer;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::playerPaymentAnswer;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Properties properties = new Properties();
@@ -728,7 +701,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
         handler.invoke(new PlayerPaymentQuestion(player), playerPaymentAnswer, args);
         assertEquals(MonetaryConstants.COIN_SILVER * 3, kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
@@ -738,15 +711,15 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Village village = factory.createVillageFor(player);
         Item deed = Items.getItem(village.deedid);
         Method playerPaymentAnswer = QuestionParser.class.getDeclaredMethod("parseVillageExpansionQuestion", VillageExpansionQuestion.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::parseVillageExpansionQuestion;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::parseVillageExpansionQuestion;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Object[] args = new Object[] { new VillageExpansionQuestion(player, "", "", deed.getWurmId(), village.getToken()) };
 
         handler.invoke(new PlayerPaymentQuestion(player), playerPaymentAnswer, args);
         assertEquals(-(long)(deed.getValue() * 0.4f), kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
@@ -755,15 +728,15 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Player player = factory.createNewPlayer(factory.pmkId);
         Arrays.stream(Economy.getEconomy().getCoinsFor(amount)).forEach(player.getInventory()::insertItem);
         Method playerPaymentAnswer = QuestionParser.class.getDeclaredMethod("charge", Creature.class, long.class, String.class, float.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::charge;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::charge;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Object[] args = new Object[] { player, amount, "Because", 0.3f };
 
         handler.invoke(new PlayerPaymentQuestion(player), playerPaymentAnswer, args);
         assertEquals((long)(amount * 0.7f), kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
@@ -771,8 +744,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Player player = factory.createNewPlayer(factory.pmkId);
         player.setMoney(100000);
         Method playerPaymentAnswer = QuestionParser.class.getDeclaredMethod("parsePlayerPaymentQuestion", PlayerPaymentQuestion.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::parsePlayerPaymentQuestion;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::parsePlayerPaymentQuestion;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Properties properties = new Properties();
@@ -784,7 +757,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
 
         handler.invoke(new PlayerPaymentQuestion(player), playerPaymentAnswer, args);
         assertEquals(30000, kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
@@ -792,8 +765,8 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Player player = factory.createNewPlayer(factory.pmkId);
         Item deed = factory.createNewItem(ItemList.settlementDeed);
         Method parseVillageFoundationQuestion5 = VillageFoundationQuestion.class.getDeclaredMethod("parseVillageFoundationQuestion5");
-        InvocationHandler handler = KingdomTreasuryMod.mod::villageFoundationQuestion;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::villageFoundationQuestion;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Object[] args = new Object[0];
@@ -807,7 +780,7 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         handler.invoke(villageFoundationQuestion, parseVillageFoundationQuestion5, args);
         assertNotNull(player.getCitizenVillage());
         assertEquals(-(long)(deed.getValue() * 0.4f), kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
@@ -815,27 +788,43 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Player player = factory.createNewPlayer(factory.pmkId);
         Village village = factory.createVillageFor(player);
         Method pollUpkeep = GuardPlan.class.getDeclaredMethod("pollUpkeep");
-        InvocationHandler handler = KingdomTreasuryMod.mod::pollUpkeep;
-        Shop kingdomShop = KingdomTreasuryMod.mod.shops.getFor(factory.pmkId);
+        InvocationHandler handler = factory.mod::pollUpkeep;
+        Shop kingdomShop = KingdomShops.getFor(factory.pmkId);
         kingdomShop.setMoney(0);
 
         Object[] args = new Object[0];
 
         handler.invoke(village.plan, pollUpkeep, args);
         assertEquals(-(long)village.plan.calculateUpkeep(true), kingdomShop.getMoney());
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertEquals(startingTreasury, getKingsShop().getMoney());
     }
 
     @Test
     void testRemoveKingdom() throws Throwable {
         Player player = factory.createNewPlayer(factory.pmkId);
         Method removeKingdom = Kingdoms.class.getDeclaredMethod("removeKingdom", byte.class);
-        InvocationHandler handler = KingdomTreasuryMod.mod::removeKingdom;
+        InvocationHandler handler = factory.mod::removeKingdom;
 
         Object[] args = new Object[] { factory.pmkId };
 
         handler.invoke(null, removeKingdom, args);
-        assertNull(KingdomTreasuryMod.mod.shops.shops.get(factory.pmkId));
-        assertEquals(startingTreasury, kingsShop.getMoney());
+        assertNull(KingdomShops.shops.get(factory.pmkId));
+        assertEquals(startingTreasury, getKingsShop().getMoney());
+    }
+
+    @Test
+    void testCreateItemTemplate() throws Throwable {
+        InvocationHandler handler = factory.mod::createItemTemplate;
+        Object[] args = new Object[] { ItemList.declarationIndependence, 1, "", "", "", "", "", "", new short[0], (short)1, (short)1, 1, 1L, 1, 1, 1, 1, new byte[0], "", 1f, 1, (byte)1, 1, true, 1 };
+        Object[] copy = args.clone();
+        handler.invoke(factory.mod, mock(Method.class), copy);
+
+        for (int i = 0; i < args.length; i++) {
+            if (i == 23) {
+                assertEquals(KingdomTreasuryMod.declarationPrice, copy[i]);
+            } else {
+                assertEquals(args[i], copy[i]);
+            }
+        }
     }
 }

@@ -19,6 +19,28 @@ public class KingdomShop extends Shop {
         void run(Connection db) throws SQLException;
     }
 
+    private KingdomShop(byte kingdom) {
+        super(getWurmId(kingdom), 0);
+        assert kingdom != 0;
+        this.kingdom = kingdom;
+        setMoney(KingdomTreasuryMod.startingMoney);
+    }
+
+    private KingdomShop(byte id, long money, long moneyEarned, long moneyEarnedLife, long moneySpent, long moneySpentLastMonth, long moneySpentLife) {
+        super(getWurmId(id), money, -10, 0, false, false, 0, 0, moneySpent, moneySpentLife, moneyEarned, moneyEarnedLife, moneySpentLastMonth, 0, 0, 0, false);
+        assert id != 0;
+        this.kingdom = id;
+    }
+
+    // Needs to be less than 0 to prevent Shop attempting to fetch a creature.
+    private static long getWurmId(byte kingdom) {
+        return kingdom - 128;
+    }
+
+    private static byte getKingdomId(long wurmId) {
+        return (byte)(wurmId + 128);
+    }
+
     public static void execute(Execute execute) throws SQLException {
         Connection db = null;
         try {
@@ -48,28 +70,6 @@ public class KingdomShop extends Shop {
                 e1.printStackTrace();
             }
         }
-    }
-
-    public KingdomShop(byte kingdom) {
-        super(getWurmId(kingdom), 0);
-        assert kingdom != 0;
-        this.kingdom = kingdom;
-        setMoney(KingdomTreasuryMod.startingMoney);
-    }
-
-    public KingdomShop(byte id, long money, long moneyEarned, long moneyEarnedLife, long moneySpent, long moneySpentLastMonth, long moneySpentLife) {
-        super(getWurmId(id), money, -10, 0, false, false, 0, 0, moneySpent, moneySpentLife, moneyEarned, moneyEarnedLife, moneySpentLastMonth, 0, 0, 0, false);
-        assert id != 0;
-        this.kingdom = id;
-    }
-
-    // Needs to be less than 0 to prevent Shop attempting to fetch a creature.
-    private static long getWurmId(byte kingdom) {
-        return kingdom - 128;
-    }
-
-    private static byte getKingdomId(long wurmId) {
-        return (byte)(wurmId + 128);
     }
 
     @Override
@@ -212,5 +212,13 @@ public class KingdomShop extends Shop {
     @Override
     public void setMerchantData(int data1, long data2) {
         logger.warning("Kingdom Shops should not have merchant data.");
+    }
+
+    public static Shop createNew(byte kingdom) {
+        return new KingdomShop(kingdom);
+    }
+
+    public static Shop load(byte id, long money, long moneyEarned, long moneyEarnedLife, long moneySpent, long moneySpentLastMonth, long moneySpentLife) {
+        return new KingdomShop(id, money, moneyEarned, moneyEarnedLife, moneySpent, moneySpentLastMonth, moneySpentLife);
     }
 }

@@ -1,8 +1,8 @@
 package com.wurmonline.server.questions;
 
 import com.wurmonline.server.economy.Change;
-import com.wurmonline.server.economy.Economy;
 import com.wurmonline.server.items.ItemList;
+import mod.wurmunlimited.treasury.KingdomShops;
 import mod.wurmunlimited.treasury.KingdomTreasuryModTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        Economy.getEconomy().getKingsShop().setMoney(startMoney);        
+        KingdomShops.getFor(kingdomId).setMoney(startMoney);        
     }
     
     // sendQuestion
@@ -57,7 +57,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
         king.die(true, "I said so.");
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers());
         
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("You are dead"));
     }
     
@@ -65,7 +65,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testNotVillageToken() {
         new WithdrawFromTreasuryQuestion(king, factory.createNewItem(ItemList.acorn)).answer(createAnswers());
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("does not function as a treasury"));
     }
     
@@ -74,16 +74,16 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
         token.setPosXY(king.getPosX() + 250, king.getPosY() + 250);
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers());
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("too far away"));
     }
 
     @Test
     void testTreasuryEmpty() {
-        Economy.getEconomy().getKingsShop().setMoney(0);
+        KingdomShops.getFor(kingdomId).setMoney(0);
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers());
 
-        assertEquals(0, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(0, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("no money in the treasury"));
     }
 
@@ -91,7 +91,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testNegativeGold() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("-1", "23", "45", "67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("a negative amount of gold"));
     }
 
@@ -99,7 +99,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testNegativeSilver() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "-23", "45", "67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("a negative amount of silver"));
     }
 
@@ -107,7 +107,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testNegativeCopper() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "23", "-45", "67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("a negative amount of copper"));
     }
 
@@ -115,7 +115,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testNegativeIron() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "23", "45", "-67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("a negative amount of iron"));
     }
 
@@ -123,7 +123,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testInvalidGold() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("abc", "23", "45", "67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("values were incorrect"));
     }
 
@@ -131,7 +131,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testInvalidSilver() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "abc", "45", "67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("values were incorrect"));
     }
 
@@ -139,7 +139,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testInvalidCopper() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "23", "abc", "67"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("values were incorrect"));
     }
 
@@ -147,7 +147,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testInvalidIron() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "23", "45", "abc"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("values were incorrect"));
     }
 
@@ -155,7 +155,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testNoMoneyWithdrawn() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("0", "0", "0", "0"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("No money was withdrawn"));
     }
 
@@ -163,7 +163,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
     void testTooMuchMoneyWithdrawn() {
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("2", "99", "99", "99"));
 
-        assertEquals(startMoney, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("can not withdraw"));
     }
 
@@ -172,7 +172,7 @@ public class WithdrawFromTreasuryQuestionTests extends KingdomTreasuryModTest {
         long toWithdraw = 1010101;
         new WithdrawFromTreasuryQuestion(king, token).answer(createAnswers("1", "1", "1", "1"));
 
-        assertEquals(startMoney - toWithdraw, Economy.getEconomy().getKingsShop().getMoney());
+        assertEquals(startMoney - toWithdraw, KingdomShops.getFor(kingdomId).getMoney());
         assertThat(king, receivedMessageContaining("You withdraw " + new Change(toWithdraw).getChangeString() + " from the treasury"));
         assertThat(king, receivedMessageContaining("New balance: " + new Change(startMoney - toWithdraw).getChangeString()));
 

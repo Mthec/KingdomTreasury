@@ -7,6 +7,7 @@ import com.wurmonline.server.behaviours.Deposit;
 import com.wurmonline.server.behaviours.TreasuryActions;
 import com.wurmonline.server.behaviours.Withdraw;
 import com.wurmonline.server.economy.KingdomShop;
+import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemList;
 import com.wurmonline.server.kingdom.King;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Properties;
@@ -48,6 +50,7 @@ public abstract class KingdomTreasuryModTest {
             init = true;
         }
 
+        KingdomShops.reset();
         factory = new KingdomTreasuryObjectsFactory();
         king = factory.createNewPlayer();
         king.setKingdomId(kingdomId);
@@ -94,15 +97,23 @@ public abstract class KingdomTreasuryModTest {
         cleanUp();
     }
 
+    protected Shop getKingsShop() {
+        try {
+            return (Shop)factory.mod.getKingsShop(factory.mod, mock(Method.class), KingdomTreasuryObjectsFactory.emptyArray);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     protected void setOnlyKing() {
         Properties properties = new Properties();
         properties.setProperty("king_only", "true");
-        KingdomTreasuryMod.mod.configure(properties);
+        factory.mod.configure(properties);
     }
 
     protected void setNotOnlyKing() {
         Properties properties = new Properties();
         properties.setProperty("king_only", "false");
-        KingdomTreasuryMod.mod.configure(properties);
+        factory.mod.configure(properties);
     }
 }
