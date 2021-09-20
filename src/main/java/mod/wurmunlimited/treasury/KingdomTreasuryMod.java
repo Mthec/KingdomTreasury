@@ -326,12 +326,12 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
         }
     }
 
-    @SuppressWarnings("SuspiciousInvocationHandlerImplementation")
     Object getKingsShop(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
         if (kingsShop == null) {
-            kingsShop = Economy.getEconomy().getShops()[0];
+            kingsShop = (Shop)method.invoke(o, args);
         }
 
+        //noinspection SuspiciousInvocationHandlerImplementation
         return kingsShop;
     }
 

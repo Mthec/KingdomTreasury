@@ -13,8 +13,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 public class KingdomTreasuryObjectsFactory extends WurmObjectsFactory {
     public final byte pmkId = -12;
@@ -26,7 +26,9 @@ public class KingdomTreasuryObjectsFactory extends WurmObjectsFactory {
         Kingdoms.addKingdom(new Kingdom(pmkId, (byte)1, "My Kingdom", "", "My Kingdom", "of Nowhere", "", "", true));
         mod = new KingdomTreasuryMod();
         Economy economy = Economy.getEconomy();
-        when(economy.getKingsShop()).thenAnswer(i -> mod.getKingsShop(economy, mock(Method.class), emptyArray));
+        Method method = mock(Method.class);
+        doAnswer(i -> shops.get(null)).when(method).invoke(any(), any());
+        when(economy.getKingsShop()).thenAnswer(i -> mod.getKingsShop(economy, method, emptyArray));
     }
 
     @Override
