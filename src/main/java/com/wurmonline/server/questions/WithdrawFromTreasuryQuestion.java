@@ -9,6 +9,7 @@ import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemList;
 import mod.wurmunlimited.bml.BML;
 import mod.wurmunlimited.bml.BMLBuilder;
+import mod.wurmunlimited.treasury.KingdomTreasuryMod;
 
 import java.util.Properties;
 
@@ -17,6 +18,7 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
     
     public WithdrawFromTreasuryQuestion(Creature responder, Item token) {
         super(responder, "Withdraw From Treasury", "", MANAGETRADER, token.getWurmId());
+        assert KingdomTreasuryMod.canManage(responder);
         this.token = token;
     }
 
@@ -38,7 +40,7 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
                 responder.getCommunicator().sendNormalServerMessage("You are too far away from the treasury.");
                 return;
             }
-            Shop treasury = Economy.getEconomy().getKingsShop();
+            Shop treasury = KingdomTreasuryMod.mod.shops.getFor(responder.getKingdomId());
             long money = treasury.getMoney();
             if (money > 0L) {
                 long valueWithdrawn;
@@ -118,7 +120,7 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
     @Override
     public void sendQuestion() {
         Creature responder = getResponder();
-        final Shop treasury = Economy.getEconomy().getKingsShop();
+        final Shop treasury = KingdomTreasuryMod.mod.shops.getFor(responder.getKingdomId());
         long money = treasury.getMoney();
         Change change = new Change(money);
         

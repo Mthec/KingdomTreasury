@@ -1,22 +1,32 @@
 package mod.wurmunlimited.treasury;
 
-import com.wurmonline.server.Items;
-import com.wurmonline.server.NoSuchItemException;
-import com.wurmonline.server.Servers;
+import com.wurmonline.server.*;
 import com.wurmonline.server.behaviours.Deposit;
 import com.wurmonline.server.behaviours.TreasuryActions;
 import com.wurmonline.server.behaviours.Withdraw;
 import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.creatures.Creature;
+import com.wurmonline.server.creatures.NoSuchCreatureException;
 import com.wurmonline.server.economy.Change;
 import com.wurmonline.server.economy.Economy;
+import com.wurmonline.server.economy.MonetaryConstants;
 import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.items.Item;
+import com.wurmonline.server.items.ItemList;
+import com.wurmonline.server.items.TradingWindow;
 import com.wurmonline.server.players.Player;
+import com.wurmonline.server.questions.EconomicAdvisorInfo;
+import com.wurmonline.server.questions.PlayerPaymentQuestion;
+import com.wurmonline.server.questions.VillageExpansionQuestion;
+import com.wurmonline.server.questions.VillageFoundationQuestion;
+import com.wurmonline.server.villages.GuardPlan;
+import com.wurmonline.server.villages.Village;
 import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
 
+import javax.annotation.Nullable;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -29,12 +39,19 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     private static final Logger logger = Logger.getLogger(KingdomTreasuryMod.class.getName());
     public static final long treasuryWindowId = -2468;
     private static boolean kingOnly = false;
+    private static @Nullable Transaction transactionWatcher;
+    public static long declarationPrice = MonetaryConstants.COIN_GOLD;
+    public static long startingMoney = MonetaryConstants.COIN_GOLD;
+    public static KingdomTreasuryMod mod;
+    public final KingdomShops shops = new KingdomShops();
+    private int numTraders = 0;
+    private Shop kingsShop = null;
+
+    public KingdomTreasuryMod() {
+        mod = this;
+    }
 
     public static boolean canManage(Creature performer) {
-        if (!Servers.isThisAHomeServer() || Servers.localServer.getKingdom() != performer.getKingdomId()) {
-            return false;
-        }
-
         if (kingOnly) {
             return performer.isKing();
         } else {
@@ -46,6 +63,30 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     public void configure(Properties properties) {
         String val = properties.getProperty("king_only");
         kingOnly = val != null && val.equals("true");
+        val = properties.getProperty("declaration_price");
+        if (val != null && !val.isEmpty()) {
+            try {
+                declarationPrice = Long.parseLong(val);
+                if (declarationPrice < 0) {
+                    throw new NumberFormatException("Declaration of independence price must be positive.");
+                }
+            } catch (NumberFormatException e) {
+                logger.warning("Invalid price for declaration of independence (" + e.getMessage() + "), setting 1g.");
+                declarationPrice = MonetaryConstants.COIN_GOLD;
+            }
+        }
+        val = properties.getProperty("starting_money");
+        if (val != null && !val.isEmpty()) {
+            try {
+                startingMoney = Long.parseLong(val);
+                if (startingMoney < 0) {
+                    throw new NumberFormatException("Starting money must be positive.");
+                }
+            } catch (NumberFormatException e) {
+                logger.warning("Invalid starting money (" + e.getMessage() + "), setting declaration of independence price.");
+                startingMoney = declarationPrice;
+            }
+        }
     }
 
     @Override
@@ -57,6 +98,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     public void init() {
         HookManager manager = HookManager.getInstance();
 
+        // Window hooks:
         manager.registerHook("com.wurmonline.server.creatures.Communicator",
                 "reallyHandle_CMD_MOVE_INVENTORY",
                 "(Ljava/nio/ByteBuffer;)V",
@@ -66,6 +108,109 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
                 "reallyHandle_CMD_CLOSE_INVENTORY_WINDOW",
                 "(Ljava/nio/ByteBuffer;)V",
                 () -> this::reallyHandle_CMD_CLOSE_INVENTORY_WINDOW);
+
+        // Shop interaction hooks:
+        manager.registerHook("com.wurmonline.server.behaviours.Methods",
+                "discardSellItem",
+                "(Lcom/wurmonline/server/creatures/Creature;Lcom/wurmonline/behaviours/Action;Lcom/wurmonline/server/items/Item;F)Z",
+                () -> this::discardSellItem);
+
+        manager.registerHook("com.wurmonline.server.creatures.Creature",
+                "removeRandomItems",
+                "()V",
+                () -> this::creatureRemoveRandomItems);
+
+        manager.registerHook("com.wurmonline.server.creatures.Creature",
+                "destroy",
+                "()V",
+                () -> this::creatureDestroy);
+
+        manager.registerHook("com.wurmonline.server.economy.DbShop",
+                "delete",
+                "()V",
+                () -> this::dbShopDelete);
+
+        manager.registerHook("com.wurmonline.server.intra.IntraServerConnection",
+                "reallyHandle",
+                "(ILjava/nio/ByteBuffer;)V",
+                () -> this::intraServerSetMoney);
+
+        manager.registerHook("com.wurmonline.server.items.TradingWindow",
+                "swapOwners",
+                "()V",
+                () -> this::swapOwners);
+
+        manager.registerHook("com.wurmonline.server.players.Player",
+                "checkCoinAward",
+                "(I)Z",
+                () -> this::checkCoinAward);
+
+        manager.registerHook("com.wurmonline.server.questions.EconomicAdvisorInfo",
+                "sendQuestion",
+                "()V",
+                () -> this::economicAdvisorInfo);
+
+        manager.registerHook("com.wurmonline.server.questions.PlayerPaymentQuestion",
+                "answer",
+                "(Ljava/util/Properties;)V",
+                () -> this::playerPaymentAnswer);
+
+        manager.registerHook("com.wurmonline.server.questions.QuestionParser",
+                "parseVillageExpansionQuestion",
+                "(Lcom/wurmonline/server/questions/VillageExpansionQuestion;)V",
+                () -> this::parseVillageExpansionQuestion);
+
+        manager.registerHook("com.wurmonline.server.questions.QuestionParser",
+                "charge",
+                "(Lcom/wurmonline/server/creatures/Creature;JLjava/lang/String;F)Z",
+                () -> this::charge);
+
+        manager.registerHook("com.wurmonline.server.questions.QuestionParser",
+                "parsePlayerPaymentQuestion",
+                "(Lcom/wurmonline/server/questions/PlayerPaymentQuestion;)V",
+                () -> this::parsePlayerPaymentQuestion);
+
+        manager.registerHook("com.wurmonline.server.questions.VillageFoundationQuestion",
+                "parseVillageFoundationQuestion5",
+                "()Z",
+                () -> this::villageFoundationQuestion);
+
+        manager.registerHook("com.wurmonline.server.villages.GuardPlan",
+                "pollUpkeep",
+                "()Z",
+                () -> this::pollUpkeep);
+
+        // Other hooks:
+        manager.registerHook("com.wurmonline.server.kingdom.Kingdoms",
+                "removeKingdom",
+                "(B)V",
+                () -> this::removeKingdom);
+
+        manager.registerHook("com.wurmonline.server.economy.Economy",
+                "addShop",
+                "(Lcom/wurmonline/server/economy/Shop;)V",
+                () -> this::addShop);
+
+        manager.registerHook("com.wurmonline.server.economy.Economy",
+                "getKingsShop",
+                "()Lcom/wurmonline/server/economy/Shop;",
+                () -> this::getKingsShop);
+
+        manager.registerHook("com.wurmonline.server.economy.Shop",
+                "getNumTraders",
+                "()I",
+                () -> this::getNumTraders);
+
+        manager.registerHook("com.wurmonline.server.economy.DbShop",
+                "create",
+                "()V",
+                () -> this::dbShopCreate);
+
+        //noinspection SpellCheckingInspection
+        manager.registerHook("com.wurmonline.server.items.ItemTemplateFactory",
+                "createItemTemplate",
+                "(IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[SSSIJIIII[BLjava/lang/String;FIBIZI)Lcom/wurmonline/server/items/ItemTemplate;",
+                () -> this::createItemTemplate);
     }
 
     @Override
@@ -150,13 +295,13 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
             communicator.sendNormalServerMessage("You attempted to put an unknown item in the treasury.");
         }
 
-        Shop treasury = Economy.getEconomy().getKingsShop();
+        Shop treasury = shops.getFor(player.getKingdomId());
         int value = 0;
         for (Item coin : coins) {
             try {
                 Item parent = coin.getParent();
                 parent.dropItem(coin.getWurmId(), false);
-                Economy.getEconomy().returnCoin(coin, "Treasury");
+                Economy.getEconomy().returnCoin(coin, "Treasury - " + player.getKingdomId());
                 value += Economy.getValueFor(coin.getTemplateId());
             } catch (NoSuchItemException nsi) {
                 logger.warning(coin.getName() + " had no parent when banking?");
@@ -187,5 +332,220 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
             byteBuffer.reset();
             return method.invoke(o, args);
         }
+    }
+
+    @SuppressWarnings("SuspiciousInvocationHandlerImplementation")
+    Object getKingsShop(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        if (kingsShop == null) {
+            kingsShop = Economy.getEconomy().getShops()[0];
+        }
+
+        return kingsShop;
+    }
+
+    private Object temporarilyReplaceKingsShop(Shop kingdomShop, Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        try {
+            kingsShop = kingdomShop;
+            return method.invoke(o, args);
+        } finally {
+            kingsShop = shops.kings();
+        }
+    }
+
+    Object discardSellItem(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Shop kingdomShop = shops.getFor(((Creature)args[0]).getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object creatureRemoveRandomItems(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        byte kingdom = ((Creature)o).getKingdomId();
+        long originalValue = shops.kings().getMoney();
+        Shop kingdomShop = shops.getFor(kingdom);
+        shops.kings().setMoney(kingdomShop.getMoney());
+        int originalNumTraders = numTraders;
+        numTraders = shops.getNumTradersFor(kingdom);
+
+        try {
+            Object toReturn = method.invoke(o, args);
+            long diff = shops.kings().getMoney() - originalValue;
+            if (diff != 0) {
+                kingdomShop.setMoney(kingdomShop.getMoney() + diff);
+            }
+            return toReturn;
+        } finally {
+            shops.kings().setMoney(originalValue);
+            numTraders = originalNumTraders;
+        }
+    }
+
+    Object creatureDestroy(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Creature maybeTrader = (Creature)o;
+        if (maybeTrader.isNpcTrader()) {
+            Shop kingdomShop = shops.getFor(maybeTrader.getKingdomId());
+            return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+        } else {
+            return method.invoke(o, args);
+        }
+    }
+
+    Object dbShopDelete(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Shop shop = (Shop)o;
+        long id = shop.getWurmId();
+        if (id > 0) {
+            try {
+                Creature creature = Server.getInstance().getCreature(id);
+                byte kingdom = creature.getKingdomId();
+                Shop kingdomShop = shops.getFor(kingdom);
+                if (shop.getOwnerId() == -10) {
+                    shops.removeTrader(kingdom);
+                }
+                method.setAccessible(true);
+                return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+            } catch (NoSuchCreatureException | NoSuchPlayerException e) {
+                logger.warning("Failed to locate creature owner for shop id " + id + ".");
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        return method.invoke(o, args);
+    }
+
+    // Paired with below.
+    Object dbShopCreate(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Object toReturn = method.invoke(o, args);
+        Shop shop = (Shop)o;
+        if (((Shop)o).getOwnerId() == -10) {
+            try {
+                byte kingdom = Server.getInstance().getCreature(shop.getWurmId()).getKingdomId();
+                shops.addTrader(kingdom);
+                shops.store(shop, kingdom);
+            } catch (NoSuchCreatureException | NoSuchPlayerException e) {
+                logger.warning("Could not find new trader being created for shop id " + shop.getWurmId() + ".");
+                e.printStackTrace();
+            }
+        }
+
+        return toReturn;
+    }
+
+    Object addShop(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        KingdomShops.ShopCreation values = shops.retrieve(((Shop)args[0]));
+        if (values != null) {
+            values.kingdomShop.setMoney(values.kingdomShop.getMoney() + (shops.kings().getMoney() - values.originalValue));
+        }
+
+        method.setAccessible(true);
+        return method.invoke(o, args);
+    }
+
+    Object intraServerSetMoney(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        ByteBuffer buffer = (ByteBuffer)args[1];
+        buffer.mark();
+        short cmd = buffer.get();
+        if (cmd == 16) {
+            long playerId = buffer.getLong();
+            buffer.reset();
+            try {
+                Player player = Players.getInstance().getPlayer(playerId);
+                Shop kingdomShop = shops.getFor(player.getKingdomId());
+                return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+            } catch (NoSuchPlayerException e) {
+                logger.warning("Failed to find player during IntraServerConnection.");
+                e.printStackTrace();
+                return method.invoke(o, args);
+            }
+        } else {
+            buffer.reset();
+            return method.invoke(o, args);
+        }
+    }
+
+    Object swapOwners(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException, NoSuchFieldException {
+        TradingWindow window = (TradingWindow)o;
+        //noinspection SpellCheckingInspection
+        Field wo = TradingWindow.class.getDeclaredField("windowowner");
+        wo.setAccessible(true);
+        Creature windowOwner = (Creature)wo.get(window);
+        method.setAccessible(true);
+        if (windowOwner.isNpcTrader()) {
+            return temporarilyReplaceKingsShop(shops.getFor(windowOwner.getKingdomId()), o, method, args);
+        } else {
+            Field wa = TradingWindow.class.getDeclaredField("watcher");
+            wa.setAccessible(true);
+            Creature watcher = (Creature)wa.get(window);
+            if (watcher.isNpcTrader()) {
+                return temporarilyReplaceKingsShop(shops.getFor(watcher.getKingdomId()), o, method, args);
+            }
+        }
+
+        return method.invoke(o, args);
+    }
+
+    Object checkCoinAward(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Shop kingdomShop = shops.getFor(((Player)o).getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object economicAdvisorInfo(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Shop kingdomShop = shops.getFor(((EconomicAdvisorInfo)o).getResponder().getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object playerPaymentAnswer(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Shop kingdomShop = shops.getFor(((PlayerPaymentQuestion)o).getResponder().getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object parseVillageExpansionQuestion(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        method.setAccessible(true);
+        Shop kingdomShop = shops.getFor(((VillageExpansionQuestion)args[0]).getResponder().getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object charge(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        method.setAccessible(true);
+        Shop kingdomShop = shops.getFor(((Creature)args[0]).getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object parsePlayerPaymentQuestion(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        method.setAccessible(true);
+        Shop kingdomShop = shops.getFor(((PlayerPaymentQuestion)args[0]).getResponder().getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object villageFoundationQuestion(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        method.setAccessible(true);
+        Shop kingdomShop = shops.getFor(((VillageFoundationQuestion)o).getResponder().getKingdomId());
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object pollUpkeep(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+        long originalValue = shops.kings().getMoney();
+        Method get = GuardPlan.class.getDeclaredMethod("getVillage");
+        get.setAccessible(true);
+        Village village = (Village)get.invoke(o);
+        Shop kingdomShop = shops.getFor(village.kingdom);
+        method.setAccessible(true);
+        return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+    }
+
+    Object removeKingdom(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        Object toReturn = method.invoke(o, args);
+        shops.delete((byte)args[0]);
+        return toReturn;
+    }
+
+    Object createItemTemplate(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        if ((int)args[0] == ItemList.declarationIndependence) {
+            args[23] = declarationPrice;
+        }
+        return method.invoke(o, args);
+    }
+
+    @SuppressWarnings("SuspiciousInvocationHandlerImplementation")
+    Object getNumTraders(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        return numTraders;
     }
 }
