@@ -6,13 +6,14 @@ import com.wurmonline.server.economy.Economy;
 import com.wurmonline.server.economy.MonetaryConstants;
 import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.items.Item;
-import com.wurmonline.server.items.ItemList;
 import mod.wurmunlimited.bml.BML;
 import mod.wurmunlimited.bml.BMLBuilder;
 import mod.wurmunlimited.treasury.KingdomShops;
 import mod.wurmunlimited.treasury.KingdomTreasuryMod;
 
 import java.util.Properties;
+
+import static com.wurmonline.server.questions.KingdomTreasuryQuestions.getValue;
 
 public class WithdrawFromTreasuryQuestion extends QuestionExtension {
     private final Item token;
@@ -33,12 +34,7 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
                 responder.getCommunicator().sendNormalServerMessage("You are dead, and may not withdraw any money.");
                 return;
             }
-            if (token.getTemplateId() != ItemList.villageToken) {
-                responder.getCommunicator().sendNormalServerMessage("The " + token.getName() + " does not function as a treasury.");
-                return;
-            }
-            if (!responder.isWithinDistanceTo(token.getPosX(), token.getPosY(), token.getPosZ(), 30.0f)) {
-                responder.getCommunicator().sendNormalServerMessage("You are too far away from the treasury.");
+            if (KingdomTreasuryQuestions.treasuryBlocked(responder, token)) {
                 return;
             }
             Shop treasury = KingdomShops.getFor(responder.getKingdomId());
@@ -107,15 +103,6 @@ public class WithdrawFromTreasuryQuestion extends QuestionExtension {
                 responder.getCommunicator().sendNormalServerMessage("You have no money in the treasury.");
             }
         }
-    }
-
-    private long getValue(String name, Properties answers) {
-        String value = answers.getProperty(name);
-        if (value != null && value.length() > 0) {
-            return Long.parseLong(value);
-        }
-
-        return 0;
     }
 
     @Override

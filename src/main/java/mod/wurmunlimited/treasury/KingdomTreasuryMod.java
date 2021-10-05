@@ -2,10 +2,12 @@ package mod.wurmunlimited.treasury;
 
 import com.wurmonline.server.*;
 import com.wurmonline.server.behaviours.Deposit;
+import com.wurmonline.server.behaviours.SetPlayerPayments;
 import com.wurmonline.server.behaviours.TreasuryActions;
 import com.wurmonline.server.behaviours.Withdraw;
 import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.creatures.Creature;
+import com.wurmonline.server.creatures.CreatureStatus;
 import com.wurmonline.server.creatures.NoSuchCreatureException;
 import com.wurmonline.server.economy.Change;
 import com.wurmonline.server.economy.Economy;
@@ -21,6 +23,7 @@ import com.wurmonline.server.questions.VillageExpansionQuestion;
 import com.wurmonline.server.questions.VillageFoundationQuestion;
 import com.wurmonline.server.villages.GuardPlan;
 import com.wurmonline.server.villages.Village;
+import mod.wurmunlimited.treasury.db.KingdomTreasuryDatabase;
 import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
@@ -29,10 +32,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable, PreInitable, ServerStartedListener {
     private static final Logger logger = Logger.getLogger(KingdomTreasuryMod.class.getName());
@@ -40,8 +42,11 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     private static boolean kingOnly = false;
     public static int declarationPrice = MonetaryConstants.COIN_GOLD;
     public static long startingMoney = MonetaryConstants.COIN_GOLD;
+    public static final Set<PlayerPayment> playerPayments = new HashSet<>();
     private int numTraders = 0;
     private Shop kingsShop = null;
+    static boolean payIntoBank = true;
+    public static final KingdomTreasuryDatabase db = new KingdomTreasuryDatabase("kingdomtreasury");
 
     public static boolean canManage(Creature performer) {
         if (kingOnly) {
@@ -203,6 +208,16 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
                 "createItemTemplate",
                 "(IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[SSSIJIIII[BLjava/lang/String;FIBIZI)Lcom/wurmonline/server/items/ItemTemplate;",
                 () -> this::createItemTemplate);
+
+        manager.registerHook("com.wurmonline.server.Players",
+                "pollPlayers",
+                "()V",
+                () -> this::pollPlayers);
+
+        manager.registerHook("com.wurmonline.server.creatures.DbCreatureStatus",
+                "setKingdom",
+                "(B)V",
+                () -> this::setKingdom);
     }
 
     @Override
@@ -210,6 +225,9 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
         ModActions.registerAction(new TreasuryActions());
         ModActions.registerAction(new Deposit());
         ModActions.registerAction(new Withdraw());
+        ModActions.registerAction(new SetPlayerPayments());
+
+        db.start();
     }
 
     Object reallyHandle_CMD_MOVE_INVENTORY(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
@@ -531,5 +549,33 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     @SuppressWarnings("SuspiciousInvocationHandlerImplementation")
     Object getNumTraders(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
         return numTraders;
+    }
+
+    Object pollPlayers(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        long time = WurmCalendar.currentTime;
+
+        // Every 5 seconds.
+        if (time % 40 == 0) {
+            for (PlayerPayment payment : playerPayments) {
+                payment.check(time);
+            }
+        }
+
+        return method.invoke(o, args);
+    }
+
+    Object setKingdom(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        CreatureStatus status = (CreatureStatus)o;
+        byte kingdomId = status.kingdom;
+        Object toReturn = method.invoke(o, args);
+        if (kingdomId != status.kingdom) {
+            List<PlayerPayment> toRemove = playerPayments.stream().filter(p -> p.playerId == status.getBody().getOwnerId()).collect(Collectors.toList());
+            for (PlayerPayment it : toRemove) {
+                db.deletePayment(it);
+                playerPayments.remove(it);
+            }
+        }
+
+        return toReturn;
     }
 }

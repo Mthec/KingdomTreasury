@@ -1,13 +1,13 @@
 package mod.wurmunlimited.treasury;
 
 import com.wurmonline.communication.SocketConnection;
-import com.wurmonline.server.Items;
-import com.wurmonline.server.Server;
+import com.wurmonline.server.*;
 import com.wurmonline.server.banks.Banks;
 import com.wurmonline.server.behaviours.Action;
 import com.wurmonline.server.behaviours.Methods;
 import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.creatures.Creature;
+import com.wurmonline.server.creatures.CreatureStatus;
 import com.wurmonline.server.creatures.CreatureTemplateIds;
 import com.wurmonline.server.economy.*;
 import com.wurmonline.server.intra.IntraServerConnection;
@@ -825,5 +825,73 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
                 assertEquals(args[i], copy[i]);
             }
         }
+    }
+
+    @Test
+    void testPollPlayers() throws Throwable {
+        KingdomTreasuryMod.db.createPayment(king.getWurmId(), king.getName(), king.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        KingdomTreasuryMod.db.createPayment(advisor.getWurmId(), advisor.getName(), advisor.getKingdomId(), 123, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        KingdomTreasuryMod.db.createPayment(other.getWurmId(), other.getName(), other.getKingdomId(), 12, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        WurmCalendar.currentTime += TimeConstants.HOUR * 8;
+        assert KingdomTreasuryMod.playerPayments.size() == 3;
+        assert king.getMoney() == 0;
+        assert advisor.getMoney() == 0;
+        assert other.getMoney() == 0;
+        Shop kingsShop = KingdomShops.getFor(king.getKingdomId());
+        kingsShop.setMoney(1234 + 123 + 12);
+
+        InvocationHandler handler = factory.mod::pollPlayers;
+        Method method = mock(Method.class);
+        Object[] args = new Object[0];
+        Players players = Players.getInstance();
+
+        handler.invoke(players, method, args);
+        assertEquals(0, kingsShop.getMoney());
+        assertEquals(1234, king.getMoney());
+        assertEquals(123, advisor.getMoney());
+        assertEquals(12, other.getMoney());
+        verify(method, times(1)).invoke(players, args);
+    }
+
+    @Test
+    void testSetKingdom() throws Throwable {
+        KingdomTreasuryMod.db.createPayment(king.getWurmId(), king.getName(), king.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        KingdomTreasuryMod.db.createPayment(advisor.getWurmId(), advisor.getName(), advisor.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        KingdomTreasuryMod.db.createPayment(other.getWurmId(), other.getName(), other.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        assert KingdomTreasuryMod.playerPayments.size() == 3;
+
+        InvocationHandler handler = factory.mod::setKingdom;
+        Method method = mock(Method.class);
+        Object[] args = new Object[] {  (byte)(other.getKingdomId() + 1) };
+        doAnswer((Answer<Void>)i -> {
+            ((CreatureStatus)i.getArgument(0)).kingdom = (byte)args[0];
+            return null;
+        }).when(method).invoke(any(), any());
+
+        handler.invoke(other.getStatus(), method, args);
+        assertEquals(2, KingdomTreasuryMod.playerPayments.size());
+        assertTrue(KingdomTreasuryMod.playerPayments.stream().noneMatch(it -> it.playerId == other.getWurmId()));
+        verify(method, times(1)).invoke(other.getStatus(), args);
+    }
+
+    @Test
+    void testSetKingdomNotChanged() throws Throwable {
+        KingdomTreasuryMod.db.createPayment(king.getWurmId(), king.getName(), king.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        KingdomTreasuryMod.db.createPayment(advisor.getWurmId(), advisor.getName(), advisor.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        KingdomTreasuryMod.db.createPayment(other.getWurmId(), other.getName(), other.getKingdomId(), 1234, TimeConstants.HOUR, PlayerPayment.TimeSpan.HOURS);
+        assert KingdomTreasuryMod.playerPayments.size() == 3;
+
+        InvocationHandler handler = factory.mod::setKingdom;
+        Method method = mock(Method.class);
+        Object[] args = new Object[] { other.getKingdomId() };
+        doAnswer((Answer<Void>)i -> {
+            ((CreatureStatus)i.getArgument(0)).kingdom = (byte)args[0];
+            return null;
+        }).when(method).invoke(any(), any());
+
+        handler.invoke(other.getStatus(), method, args);
+        assertEquals(3, KingdomTreasuryMod.playerPayments.size());
+        assertTrue(KingdomTreasuryMod.playerPayments.stream().anyMatch(it -> it.playerId == other.getWurmId()));
+        verify(method, times(1)).invoke(other.getStatus(), args);
     }
 }

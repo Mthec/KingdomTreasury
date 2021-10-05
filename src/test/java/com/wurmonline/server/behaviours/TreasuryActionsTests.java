@@ -12,10 +12,11 @@ public class TreasuryActionsTests extends KingdomTreasuryModTest {
     @Test
     void testActionsProvided() {
         List<ActionEntry> acts = actions.getBehavioursFor(king, token);
-        assertEquals(3, acts.size());
-        assertEquals(-2, acts.get(0).getNumber());
+        assertEquals(4, acts.size());
+        assertEquals(-3, acts.get(0).getNumber());
         assertEquals(deposit.getActionId(), acts.get(1).getNumber());
         assertEquals(withdraw.getActionId(), acts.get(2).getNumber());
+        assertEquals(setPlayerPayments.getActionId(), acts.get(3).getNumber());
     }
 
     @Test

@@ -1,27 +1,28 @@
 package mod.wurmunlimited.treasury;
 
 import com.wurmonline.server.Constants;
+import com.wurmonline.server.DbConnector;
 import com.wurmonline.server.Servers;
-import com.wurmonline.server.behaviours.Action;
-import com.wurmonline.server.behaviours.Deposit;
-import com.wurmonline.server.behaviours.TreasuryActions;
-import com.wurmonline.server.behaviours.Withdraw;
+import com.wurmonline.server.behaviours.*;
 import com.wurmonline.server.economy.KingdomShop;
 import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemList;
 import com.wurmonline.server.kingdom.King;
 import com.wurmonline.server.players.Player;
+import mod.wurmunlimited.WurmObjectsFactory;
+import mod.wurmunlimited.treasury.db.KingdomTreasuryDatabase;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.gotti.wurmunlimited.modsupport.actions.ActionEntryBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
-import java.io.File;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Properties;
 
 import static org.mockito.Mockito.mock;
@@ -37,6 +38,7 @@ public abstract class KingdomTreasuryModTest {
     protected static TreasuryActions actions;
     protected static Deposit deposit;
     protected static Withdraw withdraw;
+    protected static SetPlayerPayments setPlayerPayments;
     protected Action action;
     private static boolean init = false;
 
@@ -46,11 +48,38 @@ public abstract class KingdomTreasuryModTest {
             ActionEntryBuilder.init();
             deposit = new Deposit();
             withdraw = new Withdraw();
+            setPlayerPayments = new SetPlayerPayments();
             actions = new TreasuryActions();
             init = true;
         }
 
+        Connection dbCon = null;
+        try {
+            dbCon = DbConnector.getZonesDbCon();
+            dbCon.prepareStatement("DROP TABLE IF EXISTS KINGDOMS;").executeUpdate();
+            //noinspection SpellCheckingInspection
+            dbCon.prepareStatement("CREATE TABLE KINGDOMS\n" +
+                                           "(\n" +
+                                           "    KINGDOM                 TINYINT       PRIMARY KEY,\n" +
+                                           "    KINGDOMNAME             VARCHAR(30)   NOT NULL DEFAULT \"\",\n" +
+                                           "    PASSWORD                VARCHAR(10)   NOT NULL DEFAULT \"\",\n" +
+                                           "    TEMPLATE                TINYINT       NOT NULL DEFAULT 0,\n" +
+                                           "    SUFFIX                  VARCHAR(5)    NOT NULL DEFAULT \"\",\n" +
+                                           "    CHATNAME                VARCHAR(12)   NOT NULL DEFAULT \"\",\n" +
+                                           "    FIRSTMOTTO              VARCHAR(10)   NOT NULL DEFAULT \"\",\n" +
+                                           "    SECONDMOTTO             VARCHAR(10)   NOT NULL DEFAULT \"\",\n" +
+                                           "    ACCEPTSTRANSFERS        TINYINT(1)    NOT NULL DEFAULT 1,\n" +
+                                           "    WINPOINTS\t\t\t\tINT\t\t\t  NOT NULL DEFAULT 0\n" +
+                                           ");").executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            DbConnector.returnConnection(dbCon);
+        }
+
         KingdomShops.reset();
+        KingdomTreasuryMod.playerPayments.clear();
+        WurmObjectsFactory.setFinalField(null, KingdomTreasuryMod.class.getDeclaredField("db"), new KingdomTreasuryDatabase("kingdomtreasury"));
         factory = new KingdomTreasuryObjectsFactory();
         king = factory.createNewPlayer();
         king.setKingdomId(kingdomId);
@@ -75,13 +104,10 @@ public abstract class KingdomTreasuryModTest {
     }
 
     private static void cleanUp() {
-        File file = new File("sqlite/kingdomtreasury.db");
-        if (file.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
-        }
-
         try {
+            //noinspection ResultOfMethodCallIgnored
+            Files.walk(Paths.get("./sqlite/")).filter(it -> !it.toFile().isDirectory()).forEach(it -> it.toFile().delete());
+
             //noinspection ResultOfMethodCallIgnored
             Files.walk(Paths.get(".")).filter(it -> it.getFileName().toString().startsWith("kingdomtreasury") && it.getFileName().toString().endsWith("log"))
                     .forEach(it -> it.toFile().delete());
