@@ -2,9 +2,12 @@ package mod.wurmunlimited.treasury;
 
 import com.wurmonline.server.DbConnector;
 import com.wurmonline.server.Players;
+import com.wurmonline.server.Servers;
 import com.wurmonline.server.TimeConstants;
 import com.wurmonline.server.economy.Shop;
 import com.wurmonline.server.players.Player;
+import com.wurmonline.server.players.PlayerInfo;
+import com.wurmonline.server.players.PlayerInfoFactory;
 import com.wurmonline.server.utils.DbUtilities;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.junit.jupiter.api.Test;
@@ -137,6 +140,75 @@ public class PlayerPaymentTests extends KingdomTreasuryPlayerDbTest {
         assertEquals(amount, other.getMoney());
         assertEquals(0, kingsShop.getMoney());
         assertThat(other, receivedMessageContaining("pays you 12c, 34i"));
+        assertLastPaymentUpdated();
+    }
+
+    private void logoutKeepInfo(Player player) {
+        try {
+            ReflectionUtil.setPrivateField(null, Servers.class.getDeclaredField("isChaosServer"), true);
+            PlayerInfo info = player.getSaveFile();
+            byte kingdomId = player.getKingdomId();
+            player.setKingdomId((byte)(kingdomId + 1));
+            player.setKingdomId(kingdomId);
+            assert info.getChaosKingdom() == player.getKingdomId();
+            logout(player);
+            PlayerInfoFactory.addPlayerInfo(info);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testPlayerLoadedPayment() {
+        logoutKeepInfo(other);
+        long amount = 1234;
+        Shop kingsShop = KingdomShops.getFor(other.getKingdomId());
+        kingsShop.setMoney(amount);
+        KingdomTreasuryMod.db.createPayment(other.getWurmId(), other.getName(), other.getKingdomId(), amount, 10, PlayerPayment.TimeSpan.MINUTES);
+        PlayerPayment payment = KingdomTreasuryMod.playerPayments.iterator().next();
+        payment.check(88);
+
+        assertEquals(amount, other.getSaveFile().money);
+        assertEquals(0, kingsShop.getMoney());
+        assertThat(other, didNotReceiveMessageContaining("pays you 12c, 34i"));
+        assertLastPaymentUpdated();
+    }
+
+    @Test
+    void testPlayerLoadedPaymentNotEnoughInKingsMoney() {
+        logoutKeepInfo(other);
+        long amount = 1234;
+        Shop kingsShop = KingdomShops.getFor(other.getKingdomId());
+        kingsShop.setMoney(amount - 1);
+        KingdomTreasuryMod.db.createPayment(other.getWurmId(), other.getName(), other.getKingdomId(), amount, 10, PlayerPayment.TimeSpan.MINUTES);
+        PlayerPayment payment = KingdomTreasuryMod.playerPayments.iterator().next();
+        payment.check(88);
+
+        assertEquals(0, other.getSaveFile().money);
+        assertEquals(amount - 1, kingsShop.getMoney());
+        assertThat(other, didNotReceiveMessageContaining("not have enough"));
+        assertLastPaymentUpdated();
+    }
+
+    @Test
+    void testPlayerLoadedPaymentTooSoon() {
+        logoutKeepInfo(other);
+        long amount = 1234;
+        long interval = 2 * TimeConstants.MINUTE;
+        Shop kingsShop = KingdomShops.getFor(other.getKingdomId());
+        kingsShop.setMoney(amount);
+        KingdomTreasuryMod.db.createPayment(other.getWurmId(), other.getName(), other.getKingdomId(), amount, interval, PlayerPayment.TimeSpan.MINUTES);
+        PlayerPayment payment = KingdomTreasuryMod.playerPayments.iterator().next();
+
+        payment.check(interval * 8 - 1);
+        assertEquals(0, other.getSaveFile().money);
+        assertEquals(amount, kingsShop.getMoney());
+        assertLastPaymentNotUpdated();
+
+        payment.check(interval * 8);
+        assertEquals(amount, other.getSaveFile().money);
+        assertEquals(0, kingsShop.getMoney());
+        assertThat(other, didNotReceiveMessageContaining("pays you 12c, 34i"));
         assertLastPaymentUpdated();
     }
 
