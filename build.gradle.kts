@@ -3,9 +3,9 @@ plugins {
 }
 
 group = "mod.wurmunlimited.treasury"
-version = "0.2.6"
+version = "0.2.7"
 val shortName = "kingdomtreasury"
-val wurmServerFolder = "E:/Steam/steamapps/common/Wurm Unlimited/WurmServerLauncher/"
+val wurmServerFolder = "F:/Steam/steamapps/common/Wurm Unlimited/WurmServerLauncher/"
 
 repositories {
     mavenLocal()

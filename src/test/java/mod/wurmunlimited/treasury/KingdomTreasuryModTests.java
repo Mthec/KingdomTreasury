@@ -21,6 +21,7 @@ import com.wurmonline.server.players.PlayerInfoFactory;
 import com.wurmonline.server.questions.*;
 import com.wurmonline.server.villages.GuardPlan;
 import com.wurmonline.server.villages.Village;
+import com.wurmonline.server.zones.Zones;
 import mod.wurmunlimited.WurmObjectsFactory;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -367,13 +368,17 @@ public class KingdomTreasuryModTests extends KingdomTreasuryModTest {
         Creature trader = factory.createNewTrader(factory.pmkId);
         factory.getShop(trader).addMoneyEarned(2);
         factory.getShop(trader).addMoneySpent(1);
+        int traderCount = 0;
+        long traderPayment = (int)(kingdomShop.getMoney() / Math.max(1, Shop.getNumTraders()));
+        traderPayment *= (int)(1.0f + Zones.getPercentLandForKingdom(factory.pmkId) / 100.0f);
+        traderPayment *= (int)(1.0f + Items.getBattleCampControl(factory.pmkId) / 10.0f);
         Object[] args = new Object[0];
         Server.rand.setSeed(4446);
 
         handler.invoke(trader, removeRandomItems, args);
         assertEquals(startingTreasury, getKingsShop().getMoney());
-        assertTrue(kingdomShop.getMoney() < startingTreasury);
-        assertEquals(startingTreasury - kingdomShop.getMoney(), factory.getShop(trader).getMoney());
+        assertEquals(startingTreasury, kingdomShop.getMoney());
+        assertEquals(traderPayment, factory.getShop(trader).getMoney());
     }
 
     @Test

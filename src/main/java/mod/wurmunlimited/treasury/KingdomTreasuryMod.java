@@ -374,7 +374,10 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
 
         try {
             Shop kingdomShop = KingdomShops.getFor(kingdom);
-            return temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+            long startMoney = kingdomShop.getMoney();
+            Object toReturn = temporarilyReplaceKingsShop(kingdomShop, o, method, args);
+            kingdomShop.setMoney(startMoney);
+            return toReturn;
         } finally {
             numTraders = originalNumTraders;
         }
