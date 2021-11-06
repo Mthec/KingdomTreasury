@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "mod.wurmunlimited.treasury"
-version = "0.2.7"
+version = "0.2.8"
 val shortName = "kingdomtreasury"
 val wurmServerFolder = "F:/Steam/steamapps/common/Wurm Unlimited/WurmServerLauncher/"
 

@@ -370,7 +370,7 @@ public class KingdomTreasuryMod implements WurmServerMod, Configurable, Initable
     Object creatureRemoveRandomItems(Object o, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
         byte kingdom = ((Creature)o).getKingdomId();
         int originalNumTraders = numTraders;
-        numTraders = KingdomShops.getNumTradersFor(kingdom);
+        numTraders = KingdomShops.getNumTradersFor(kingdom) + 1;
 
         try {
             Shop kingdomShop = KingdomShops.getFor(kingdom);
